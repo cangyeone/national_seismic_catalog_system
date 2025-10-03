@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from typing import Callable, Optional
 
 import numpy as np
 from obspy import Stream, Trace, UTCDateTime
@@ -8,6 +10,7 @@ from sqlmodel import Session, select
 from ...models.base import Event, Station, WaveformFile
 from ...services.pipeline.context import ProcessingContext, WaveformPayload
 from ..storage.mseed import MSeedStorage
+from ..storage.object_store import ObjectStorageClient
 
 SessionFactory = Callable[[], Session]
 
@@ -15,9 +18,15 @@ SessionFactory = Callable[[], Session]
 class WaveformPersistenceService:
     """Handles conversion of raw waveform samples into stored MiniSEED files."""
 
-    def __init__(self, storage: MSeedStorage, session_factory: SessionFactory):
+    def __init__(
+        self,
+        storage: MSeedStorage,
+        session_factory: SessionFactory,
+        object_store: Optional[ObjectStorageClient] = None,
+    ):
         self.storage = storage
         self.session_factory = session_factory
+        self.object_store = object_store
 
     def store_waveform(self, payload: WaveformPayload) -> WaveformFile:
         samples = np.asarray(payload.samples, dtype="float32")
@@ -30,7 +39,11 @@ class WaveformPersistenceService:
         trace = Trace(data=samples, header=stats)
         stream = Stream(traces=[trace])
         path = self.storage.save_stream(payload.station_code, payload.start_time, stream)
+        storage_key = self.storage.build_object_key(path)
         checksum = self.storage.compute_checksum(path)
+        object_uri = None
+        if self.object_store:
+            object_uri = self.object_store.put_file(path, storage_key)
 
         with self.session_factory() as session:
             station = session.exec(
@@ -47,6 +60,7 @@ class WaveformPersistenceService:
                 start_time=payload.start_time,
                 end_time=payload.end_time,
                 file_path=str(path),
+                object_uri=object_uri,
                 checksum=checksum,
             )
             session.add(waveform_file)
@@ -54,11 +68,14 @@ class WaveformPersistenceService:
             session.refresh(waveform_file)
 
         payload.file_path = path
+        payload.storage_key = storage_key
+        payload.object_uri = object_uri or str(path)
         return waveform_file
 
 
 async def persist_processing_result(
-    context: ProcessingContext, session_factory: SessionFactory
+    context: ProcessingContext,
+    session_factory: SessionFactory,
 ) -> None:
     """Persist processing results produced by the pipeline."""
 

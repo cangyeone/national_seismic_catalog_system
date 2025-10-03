@@ -18,6 +18,10 @@ class WaveformPayload:
     sampling_rate: float
     metadata: Dict[str, Any] = field(default_factory=dict)
     file_path: Path | None = None
+    object_uri: str | None = None
+    storage_key: str | None = None
+    stream_offset: int | None = None
+    stream_partition: int | None = None
 
 
 @dataclass

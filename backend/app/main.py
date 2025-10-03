@@ -10,11 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api.routers import events, stations, waveforms
 from .core.config import get_settings
 from .db.session import init_db, session_factory
-from .services.pipeline.context import ProcessingContext
-from .services.pipeline.orchestrator import build_default_pipeline
-from .services.pipeline.queue import RealtimeQueue
 from .services.storage.mseed import MSeedStorage
-from .services.utils.persistence import WaveformPersistenceService, persist_processing_result
+from .services.storage.object_store import ObjectStorageClient
+from .services.streaming.message_bus import InMemoryMessageBus, KafkaMessageBus, MessageBus
+from .services.streaming.publisher import WaveformStreamPublisher, WaveformStreamTopics
+from .services.utils.persistence import WaveformPersistenceService
 
 logger = logging.getLogger(__name__)
 
@@ -26,26 +26,47 @@ async def lifespan(app: FastAPI):
     init_db()
 
     storage = MSeedStorage(Path(settings.data_root))
-    waveform_persistence = WaveformPersistenceService(storage, session_factory)
-    pipeline = build_default_pipeline()
-
-    async def handle_completion(context: ProcessingContext) -> None:
-        await persist_processing_result(context, session_factory)
-
-    realtime_queue = RealtimeQueue(
-        pipeline=pipeline,
-        maxsize=settings.realtime_queue_maxsize,
-        on_complete=handle_completion,
+    object_store = ObjectStorageClient(
+        settings.object_store_bucket,
+        base_path=settings.object_store_cache,
+        endpoint=settings.object_store_endpoint,
+        scheme=settings.object_store_scheme,
+    )
+    waveform_persistence = WaveformPersistenceService(
+        storage,
+        session_factory,
+        object_store=object_store,
     )
 
-    app.state.waveform_persistence = waveform_persistence
-    app.state.realtime_queue = realtime_queue
+    bus: MessageBus
+    if settings.streaming_driver.lower() == "kafka":
+        bus = KafkaMessageBus(
+            settings.kafka_bootstrap_servers,
+            security_protocol=settings.kafka_security_protocol,
+            sasl_mechanism=settings.kafka_sasl_mechanism,
+            sasl_username=settings.kafka_sasl_username,
+            sasl_password=settings.kafka_sasl_password,
+        )
+    else:
+        bus = InMemoryMessageBus()
+    await bus.start()
 
-    await realtime_queue.start()
+    topics = WaveformStreamTopics(
+        raw_waveforms=settings.topic_waveforms_raw,
+        phase_picks=settings.topic_waveforms_phase_picks,
+        associations=settings.topic_waveforms_associations,
+        locations=settings.topic_waveforms_locations,
+    )
+    stream_publisher = WaveformStreamPublisher(bus, topics)
+
+    app.state.waveform_persistence = waveform_persistence
+    app.state.waveform_stream_publisher = stream_publisher
+    app.state.message_bus = bus
+    app.state.stream_topics = topics
     try:
         yield
     finally:
-        await realtime_queue.stop()
+        await bus.stop()
 
 
 def create_application() -> FastAPI:

@@ -30,6 +30,9 @@ class MSeedStorage:
         stream.write(path, format="MSEED")
         return path
 
+    def build_object_key(self, path: Path) -> str:
+        return path.relative_to(self.root).as_posix()
+
     @staticmethod
     def compute_checksum(path: Path) -> str:
         digest = hashlib.sha256()

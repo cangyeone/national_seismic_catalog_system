@@ -17,4 +17,7 @@ class WaveformIngestRequest(BaseModel):
 class WaveformIngestResponse(BaseModel):
     waveform_file_id: int
     file_path: str
-    queue_position: int | None = None
+    object_uri: str | None = None
+    stream_topic: str
+    stream_partition: int | None = None
+    stream_offset: int | None = None

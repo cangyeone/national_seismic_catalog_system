@@ -43,6 +43,7 @@ class WaveformFile(TimeStampedModel, table=True):
     start_time: datetime
     end_time: datetime
     file_path: str
+    object_uri: str | None = Field(default=None, index=True)
     checksum: str | None = None
 
 
