@@ -55,6 +55,21 @@ class Settings(BaseSettings):
         "clickhouse://localhost:9000",
         description="Columnar analytics database DSN (e.g., ClickHouse).",
     )
+    usgs_base_url: str = Field(
+        "https://earthquake.usgs.gov",
+        description="Base URL for the public USGS realtime feeds.",
+    )
+    usgs_event_path: str = Field(
+        "/fdsnws/event/1/query",
+        description="Path to the USGS event feed endpoint.",
+    )
+    usgs_station_path: str = Field(
+        "/fdsnws/station/1/query",
+        description="Path to the USGS station feed endpoint.",
+    )
+    usgs_timeout_seconds: float = Field(
+        10.0, description="HTTP timeout for requests to the USGS feeds."
+    )
 
     class Config:
         env_file = ".env"

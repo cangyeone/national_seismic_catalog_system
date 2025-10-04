@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .api.routers import events, stations, waveforms
+from .api.routers import events, stations, usgs, waveforms
 from .core.config import get_settings
 from .db.session import init_db, session_factory
 from .services.storage.mseed import MSeedStorage
@@ -15,6 +15,7 @@ from .services.storage.object_store import ObjectStorageClient
 from .services.streaming.message_bus import InMemoryMessageBus, KafkaMessageBus, MessageBus
 from .services.streaming.publisher import WaveformStreamPublisher, WaveformStreamTopics
 from .services.utils.persistence import WaveformPersistenceService
+from .services.usgs import USGSLiveClient
 
 logger = logging.getLogger(__name__)
 
@@ -59,14 +60,23 @@ async def lifespan(app: FastAPI):
     )
     stream_publisher = WaveformStreamPublisher(bus, topics)
 
+    usgs_client = USGSLiveClient(
+        base_url=settings.usgs_base_url,
+        event_path=settings.usgs_event_path,
+        station_path=settings.usgs_station_path,
+        timeout=settings.usgs_timeout_seconds,
+    )
+
     app.state.waveform_persistence = waveform_persistence
     app.state.waveform_stream_publisher = stream_publisher
     app.state.message_bus = bus
     app.state.stream_topics = topics
+    app.state.usgs_client = usgs_client
     try:
         yield
     finally:
         await bus.stop()
+        await usgs_client.aclose()
 
 
 def create_application() -> FastAPI:
@@ -86,6 +96,7 @@ def create_application() -> FastAPI:
     app.include_router(stations.router)
     app.include_router(waveforms.router)
     app.include_router(events.router)
+    app.include_router(usgs.router)
     return app
 
 

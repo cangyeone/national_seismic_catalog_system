@@ -75,6 +75,10 @@
 - `GET /events`：查询已定位事件，可按时间、震级、空间范围过滤。
 - 列式库 schema 推荐字段：`event_id`, `origin_time`, `latitude`, `longitude`, `depth_km`, `magnitude_ml`, `mechanism`, `phase_count`, `quality_flag`。
 
+### USGS 实时数据接入
+- `GET /usgs/events/live`：直连 USGS GeoJSON 实时事件源，支持最小震级、时间窗口与数量限制，可用于大屏或仪表板展示。
+- `GET /usgs/stations/live`：获取实时台站分布，可选网络/通道过滤与可用性信息，便于在独立页面绘制分布图。
+
 ### 实时处理扩展
 - 震相拾取模型：可部署 P/S 深度模型（如 EQTransformer），支持 GPU 加速。
 - 事件关联：默认兼容 REAL 算法，亦可集成基于图的聚类方法。
@@ -88,6 +92,8 @@
 | `/stations` | `GET` | 查询台站列表 |
 | `/waveforms/ingest` | `POST` | 上传波形、转存 MiniSEED 并推送 Kafka |
 | `/events` | `GET` | 查询已编目的地震事件 |
+| `/usgs/events/live` | `GET` | 获取 USGS 实时事件，用于 Web 可视化 |
+| `/usgs/stations/live` | `GET` | 获取 USGS 实时台站分布 |
 
 > 更多请求/响应字段详见 `backend/app/schemas` 目录。
 
@@ -144,6 +150,10 @@ poetry run uvicorn app.main:app --reload
 | `OBJECT_STORE_BUCKET` | MiniSEED 存储桶名称 | `seismic-waveforms` |
 | `COLUMNAR_DSN` | 列式数据库连接串 | `clickhouse://clickhouse:9000` |
 | `TMP_STORAGE_PATH` | 本地 MiniSEED 暂存目录 | `/data/mseed` |
+| `USGS_BASE_URL` | USGS 实时数据接口域名 | `https://earthquake.usgs.gov` |
+| `USGS_EVENT_PATH` | USGS 事件接口路径 | `/fdsnws/event/1/query` |
+| `USGS_STATION_PATH` | USGS 台站接口路径 | `/fdsnws/station/1/query` |
+| `USGS_TIMEOUT_SECONDS` | 调用 USGS 接口的超时时间（秒） | `10` |
 
 ## 流式作业参考实现
 
