@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "national-seismic-catalog-system"
+version = "0.1.0"
+description = "Backend services for the National Seismic Catalog System"
+authors = ["Automated Agent <agent@example.com>"]
+readme = "../README.md"
+packages = [{include = "app"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "^0.110.0"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+sqlmodel = "^0.0.14"
+obspy = "^1.4.0"
+numpy = "^1.26.0"
+python-multipart = "^0.0.9"
+httpx = "^0.27.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
